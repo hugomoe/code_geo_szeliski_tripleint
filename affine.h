@@ -134,9 +134,12 @@ float filter_v(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double
 }
 
 
-
+//Cette fonction applique un shear horizontale, de paramêtre a0 et a1 
+//Le s est la largeur du filtre
+//Les xc_i, yc_f, ... sont les coordonnées du centre de l'image initiale / final
 int apply_rh(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,double s,double a0,double a1){
 
+	//si c'est l'identité on ne veut pas convoler, on renvoit alors l'image initiale
 	if(eq(a0,1.) && eq(a1,0.) && eq(xc_i,xc_f)){
 		for(int i=0;i<3*w*h;i++){img2[i]=img1[i];}
 		return 0;
@@ -144,25 +147,28 @@ int apply_rh(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double 
 
 //printf("apply_rh(%f,%f,%f)\n",s,a0,a1);
 
+	//on déclare H qui est un precalcul de coefficient du filtre
 	int N = ceil(abs(s*TAPS));
 	int prec = pow(2,PREC);
 	float precf = (float) prec;
 	//float sf = (float) s;
 	float *H = malloc((2*N+1)*prec*sizeof(float));
-    if(H==NULL){printf("apply_rh : H n'a pas ete cree");return 1;}
+	if(H==NULL){printf("apply_rh : H n'a pas ete cree");return 1;} //gestion d'erreur du malloc
 
 	int k,p,i,j;
 
+	//on remplit le H a l'aide de la fonction du filtre filter_fun
 	for(p=0;p<prec;p++){
 		float Htot = 0;
 		float pf = (float) p;
 		for(k=-N;k<=N;k++){
                 float kf = (float) k;
-			Htot += H[k*prec + p + N*prec] = filter_fun((kf+pf/precf)/s);
+			Htot += H[k*prec + p + N*prec] = filter_fun((kf+pf/precf)/s);  //s est la largeur du flitre
 		}
-		for(k=-N;k<=N;k++){H[k*prec + p + N*prec] = H[k*prec + p + N*prec]/Htot;}
+		for(k=-N;k<=N;k++){H[k*prec + p + N*prec] = H[k*prec + p + N*prec]/Htot;} //On normalise le filtre, pour chaque p
 	}
 
+	//On fait la convolution
 	for(int l=0;l<3;l++){
 		for(j=0;j<h;j++){
 			for(i=0;i<w;i++){
@@ -174,6 +180,8 @@ int apply_rh(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double 
 	return 0;
 }
 
+
+//Fonction similaire mais verticale
 int apply_rv(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,double s,double a0,double a1){
 
 	if(eq(a0,1.) && eq(a1,0.) && eq(yc_i,yc_f)){
@@ -214,21 +222,24 @@ int apply_rv(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double 
 
 
 
+//Fonction principale, qui prend deux pointeurs vers des images, leurs dimensions, ainsi qu'une affinite.
+//Elle copie le resultat de la transformation dans img_f, l'image finale
 int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *affinity){
 	int i,j,l;
+	
 	//copie des arguments
 	float *img_i = malloc(3*w*h*sizeof(float));
 	for(i=0;i<3*w*h;i++){img_i[i]=img[i];}
 	double a[6];
-	for (i=0;i<6;i++){a[i]=affinity[i];}
+	for (i=0;i<6;i++){a[i]=affinity[i];} //utile lors des tests.
 
-
+	//on transpose eventuellement l'image et l'affinite
 	int wh[2] = {w,h};
 	transpo_opt(img_i,a,wh);
 	w=wh[0];
 	h=wh[1];
 
-    //umax,vmax
+    	//On calcul umax et vmax, cf. Szeliski
 	double umax,vmax;
     double A[2][2] = {a[0],a[1],a[3],a[4]};
     int test = umax_vmax(&umax,&vmax,A);
