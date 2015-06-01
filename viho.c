@@ -478,7 +478,7 @@ static interpolator_t obtain_interpolator(struct viewer_state *e)
 
 
 
-#include "decompRipMap.h"
+#include "decomp.h"
 
 
 // draw the image warped by the current homography
