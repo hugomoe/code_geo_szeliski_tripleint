@@ -315,7 +315,7 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
 	//*/
 
 
-
+	//Calcul de valeurs auxiliaire pour la decomposition en shear (cf. Szeliski, on a garde les noms de l'article)
 	double b0 = a[0] - a[1]*a[3]/a[4];
 	double t2 = a[2] - a[1]*a[5]/a[4];
 	//rv
@@ -329,46 +329,51 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
 	double rh = absd(a[3]/a[4])*rv*vmax + aux_rh;
 	if(rh>3){rh = 3;}else{if(rh<1){rh = 1;}}
 
-    double wf = (double) w, hf = (double) h;
-    double wwf = (double) ww, hhf = (double) hh;
-    double xc_i, yc_i, xc_f, yc_f; //coordonnées absolues du centre de l'image, initiales et finales
-
-    xc_i = wf/2.;
-    yc_i = hf/2.;
-    xc_f = xc_i;
-    yc_f = rv/a[4] * yc_i;
+	//Calcul du centre des images
+	double wf = (double) w, hf = (double) h;
+	double wwf = (double) ww, hhf = (double) hh;
+	double xc_i, yc_i, xc_f, yc_f; //coordonnées absolues du centre des images initiale et finale
+	xc_i = wf/2.;
+	yc_i = hf/2.;
+	xc_f = xc_i;
+	yc_f = rv/a[4] * yc_i;
+	
+	//application du shear centre
 	apply_rv(img1,img2,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,1/vmax,a[4]/rv,0.);
-
-	xc_i = xc_f - t2; //translation de -t2 selon x
+	
+	//translation de -t2 selon x
+	xc_i = xc_f - t2;
 	yc_i = yc_f;
 	xc_f = rh/b0 * xc_i - a[1]/rv*rh/b0 * yc_i;
 	yc_f = yc_i;
-    apply_rh(img2,img1,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,1/umax,b0/rh,a[1]/rv);
-
-    xc_i = xc_f;
-    yc_i = yc_f - a[5]*rv/a[4]; //translation de -a[5]*rv/a[4] selon y
-    xc_f = xc_i;
-    yc_f = hhf/2.;
+	
+	//deuxieme shear
+    	apply_rh(img2,img1,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,1/umax,b0/rh,a[1]/rv);	
+    	
+    	//translation de -a[5]*rv/a[4] selon y
+	xc_i = xc_f;
+	yc_i = yc_f - a[5]*rv/a[4];
+	xc_f = xc_i;
+	yc_f = hhf/2.;
+	
+	//troisieme shear
 	apply_rv(img1,img2,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,rv,rv,a[3]*rv/a[4]/rh);
-
+	
+	//on recentre
 	xc_i = xc_f;
 	yc_i = yc_f;
 	xc_f = wwf/2.;
 	yc_f = hhf/2.;
+	
+	//quatrieme shear
 	apply_rh(img2,img1,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,rh,rh,0.);
 
 
-
-
-
-
-
+	//On recopie finalement le résultat dans l'image final
 	for(l=0;l<3;l++){
 		for(i=0;i<w_f;i++){
 			for(j=0;j<h_f;j++){
 				img_f[(i+j*w_f)*3+l] = img1[(i+ww+(j+hh)*ww*3)*3+l];
-				//draw a grid
-				//if (good_modulus(i,w_f/3) == 0 || good_modulus(j,h_f/3) == 0){img_f[(i+j*w_f)*3+l] = 255;}
 			}
 		}
 	}
