@@ -19,27 +19,31 @@
   * AY + AXc - Xc = BY
   */
 
+//le filtre comporte 2*TAPS+1 valeurs non nulle.
 #define TAPS 4
-//#define TAPS 1
 
 #define FILTER_TYPE 0 //the index to change the interpolation filter
 //list of possible index for interpolation filters
 #define RAISED_COSINE 0
 #define GAUSSIAN 1
 
-#define VARIANCE 0.36 //trop de flou
-//#define VARIANCE 0.1 //trop d'aliasing
+#define VARIANCE 0.36 
 #define PERIOD 1.
 #define BETA 0.25
 
+//Prec indique la précision des des calculs
 #define PREC 10
 #define PREC2 20
 #define PI 3.14159265358979323
 
+//on a redéfinit la valeur absolue
 double absd(double a){if(a>0){return a;}{return -a;}}
 
+//une égalité pour les doubles, qui utilise PREC2
 bool eq(double a,double b){if(a<b+pow(2,-PREC2)&& a>b-pow(2,-PREC2)){return true;}{return false;}}
 
+
+//cette fonction tanspose si cela est utile (cf article Szeliski)
 void transpo_opt(float *img,double *a,int wh[2]){
 	double c1,c2;
 	c1 = sqrt(pow(a[0],2)+pow(a[1],2));
@@ -49,12 +53,12 @@ void transpo_opt(float *img,double *a,int wh[2]){
 	if(a0+a4<a1+a3){
 		int w = wh[0];
 		int h = wh[1];
-	//transpo affinite
+	//transposition de l'affinite
 		double aa[6];
 		aa[0]=a[3]; aa[1]=a[4]; aa[2]=a[5]; aa[3]=a[0]; aa[4]=a[1]; aa[5]=a[2];
 		a[0]=aa[0]; a[1]=aa[1]; a[2]=aa[2]; a[3]=aa[3]; a[4]=aa[4]; a[5]=aa[5];
 
-	//transpo img
+	//transposition de l'image
 		float *img_t = malloc(3*w*h*sizeof(float));
 		int i,j,l;
 		for(l=0;l<3;l++){
@@ -66,12 +70,12 @@ void transpo_opt(float *img,double *a,int wh[2]){
 		}
 		for(i=0;i<w*h*3;i++){img[i]=img_t[i];}
 
-	//transpo w / h
+	//transposition de w et h
 		wh[0]=h; wh[1]=w;
 	}
 }
 
-
+//La fonction qui sert de base pour definir le filtre
 float filter_fun(float x){
     switch(FILTER_TYPE){
     case GAUSSIAN:
@@ -88,26 +92,28 @@ float filter_fun(float x){
 
 
 
-
+//Cette fonction réalise l interpolation horizontale.
+//Les xc_i, yc_f, ... sont les coordonnées du centre de l'image initiale / final
 float filter_h(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,float *H,int N,int prec,double a0,double a1,int i,int j,int l){
 	double x = i;
 	double y = j;
 	double wf = (double) w, hf = (double) h;
-	double M = a0*(x+xc_f-wf/2.) + a1*(y+yc_f-hf/2.) - xc_i+wf/2.;
+	double M = a0*(x+xc_f-wf/2.) + a1*(y+yc_f-hf/2.) - xc_i+wf/2.;  //Indique ou on doit centrer la gaussienne
 	int k = floor(M);
 	int p = floor(prec*(M-k));
-	float a = 0;
+	float tot = 0;
 
 	int u = k-N;
 	if(u<0){u=0;}
-
+	//on realise la convolution
 	for(;u<=k+N && u<w;u++){
-        a += H[(k-u)*prec + p + N*prec]*img[(u+j*w)*3+l];
+	       tot += H[(k-u)*prec + p + N*prec]*img[(u+j*w)*3+l];
 	}
 
-    return a;
+    return tot;
 }
 
+//Fonction similaire mais verticale
 float filter_v(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,float *H,int N,int prec,double a0,double a1,int i,int j,int l){
 	double x = i;
 	double y = j;
@@ -115,16 +121,16 @@ float filter_v(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double
 	double M = a1*(x+xc_f-wf/2.) + a0*(y+yc_f-hf/2.) - yc_i+hf/2.;
 	int k = floor(M);
 	int p = floor(prec*(M-k));
-	float a = 0;
+	float tot = 0;
 
 	int u = k-N;
 	if(u<0){u=0;}
 
 	for(;u<=k+N && u<h;u++){
-        a += H[(k-u)*prec + p + N*prec]*img[(i+u*w)*3+l];
+        tot += H[(k-u)*prec + p + N*prec]*img[(i+u*w)*3+l];
 	}
 
-    return a;
+    return tot;
 }
 
 
