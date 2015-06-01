@@ -241,27 +241,25 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
 
     	//On calcul umax et vmax, cf. Szeliski
 	double umax,vmax;
-    double A[2][2] = {a[0],a[1],a[3],a[4]};
-    int test = umax_vmax(&umax,&vmax,A);
-    if(test==0){
-        printf("@apply_affinite : erreur dans umax_vmax\n");
+	double A[2][2] = {a[0],a[1],a[3],a[4]};
+    	int test = umax_vmax(&umax,&vmax,A);  //dans le fichier "umax_vmax.h"
+    	if(test==0){
+        	printf("@apply_affinite : erreur dans umax_vmax\n");
         exit(1);
-    }
+	}
 
-    //ww et hh : la taille de l'image qu'on traitera
-    //(suffisamment grande pour ne pas sortir de l'image)
-    int ww,hh;
-    if(w<w_f){ww = w_f;} else {ww = w;}
-    if(h<h_f){hh = h_f;} else {hh = h;}
-    //dw et dh : différence de taille entre img_i et img_f
-    int dw = (w_f-w)/2, dh = (h_f-h)/2; //x_f et x ont même parité
-    //dwp et dhp leur partie positive (xp=max(0,x))
-    int dwp = (dw<0) ? 0 : dw;
-    int dhp = (dh<0) ? 0 : dh;
-    //dwn et dhn leur partie négative (xn=max(0,-x))
-    int dwn = (-dw<0) ? 0 : -dw;
-    int dhn = (-dh<0) ? 0 : -dh;
+	//Divers valeurs utiles pour calculer les tailles d'images
+	//ww et hh sont les dimensions de l'image qu'on traitera (suffisamment grande pour ne pas sortir de l'image)
+	int ww,hh;
+	if(w<w_f){ww = w_f;} else {ww = w;}
+	if(h<h_f){hh = h_f;} else {hh = h;}
+	//dw et dh : différence de taille entre img_i et img_f
+	int dw = (w_f-w)/2, dh = (h_f-h)/2; //x_f et x ont même parité
+	//dwp et dhp leur partie positive (xp=max(0,x))
+	int dwp = (dw<0) ? 0 : dw;
+	int dhp = (dh<0) ? 0 : dh;
 
+	//declaration d'image intermediaire, avec code d'erreur du malloc
 	float *img1 = malloc(3*9*ww*hh*sizeof(float));
 	float *img2 = malloc(3*9*ww*hh*sizeof(float));
 	if(img1==NULL || img2==NULL){
@@ -270,9 +268,7 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
     }
 
 
-
-
-
+	//Ici il y a le choix des conditions aux bord pour éviter l'effet Gibbs. Ici on a opte pour symétrique
     ///** condition aux bords : symétrisation
 	int i_sym,j_sym;
 	for(l=0;l<3;l++){
