@@ -362,6 +362,22 @@ printf("application de B  : done\n");
         //free(img4);
         //*/
 	}
+	
+	
+	double p[2];
+	for(int i=0;i<w_f;i++){
+		for(int j=0;j<h_f;j++){
+			p[0]=i; p[1]=j;
+			apply_homography(p,H,p);
+			p[0] = (p[0] - 0.5) * w / (w - 1.0);
+			p[1] = (p[1] - 0.5) * h / (h - 1.0);
+			if(p[0]<0 || p[0]>w || p[1]<0 || p[1]>h ){
+				for(int l=0;l<3;l++){img_f[(j*w_f+i)*3+l]=0;}
+			}
+		}
+	}
+	
+	
 printf("-------------------- fin de apply_homo_final --------------------\n");
 }
 
@@ -369,60 +385,3 @@ printf("-------------------- fin de apply_homo_final --------------------\n");
 
 
 
-
-
-
-
-
-//decomp pour la decompo H_N,lambda
-//void decomp(double H[3][3],double A[6],double H0[9],double B[6]){
-/**
-  * @param
-  *     H,A,H0,B : H = A H0 B
-  */
-/*
-	double *a = *H;
-	for(int i=0;i<8;i++){a[i]=a[i]/a[8];}
-	a[8]=1.;
-
-	double N = sqrt( pow(a[6],2) + pow(a[7],2) );
-	double delta1 = a[1]*a[6] - a[0]*a[7];
-	double delta2 = a[4]*a[6] - a[3]*a[7];
-	double gamma1 = a[0]*a[6] + a[1]*a[7];
-	double gamma2 = a[3]*a[6] + a[4]*a[7];
-	double det = a[0]*a[4]*a[8] + a[2]*a[3]*a[7] + a[1]*a[5]*a[6] - a[2]*a[4]*a[6] - a[1]*a[3]*a[8] - a[0]*a[5]*a[7];
-	double s = -( delta1*(gamma1/N - a[2]*N) + delta2*(gamma2/N - a[5]*N) )/( pow(delta1,2) + pow(delta2,2) );
-	double b = pow(s*delta1 - a[2]*N + gamma1/N,2) + pow(s*delta2 - a[5]*N + gamma2/N,2) + pow(delta1/N,2) + pow(delta2/N,2);
-	double lambda = sqrt(( b + sqrt( absd(pow(b,2) - 4*pow(det,2)) ) )/2);
-
-printf("s:%f lambda:%f N:%f\n",s,lambda,N);
-
-	B[0] = a[6]/N;
-	B[1] = a[7]/N;
-	B[2] = 0;
-	B[3] = -a[7]/N;
-	B[4] = a[6]/N;
-	B[5] = s;
-	A[5] = a[5] - s*delta2/N;
-	A[2] = a[2] - s*delta1/N;
-	//if(lambda<=1){lambda = 1;}
-    A[0] = (s*delta1 - a[2]*N + gamma1/N)/lambda;
-    A[1] = (delta1/N)/lambda;
-    A[3] = (s*delta2 - a[5]*N + gamma2/N)/lambda;
-    A[4] = (delta2/N)/lambda;
-
-    H0[0] = lambda;
-    H0[1] = 0.;
-    H0[2] = 0.;
-    H0[3] = 0.;
-    H0[4] = lambda;
-    H0[5] = 0.;
-    H0[6] = N;
-    H0[7] = 0.;
-    H0[8] = 1.;
-
-//printf("A :\n%f %f %f\n%f %f %f\n",A[0],A[1],A[2],A[3],A[4],A[5]);
-//printf("B :\n%f %f %f\n%f %f %f\n",B[0],B[1],B[2],B[3],B[4],B[5]);
-
-}
-*/
