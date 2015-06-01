@@ -128,7 +128,7 @@ printf("%f %f %f\n",H[2][0],H[2][1],H[2][2]);
 
 
 
-		double x4[4] = {0,w_f,w_f,0};
+	double x4[4] = {0,w_f,w_f,0};
         double y4[4] = {0,0,h_f,h_f};
         //x1,y1 = H(x4,y4)
         double x1[4];
@@ -259,18 +259,13 @@ printf("mu4 x nu4 : %d x %d\n\n",mu4,nu4);
 
 
 
-        //à ce stade, on a pris en compte une grande partie des translations de A, via mu2,nu2
-        //on modifie donc A en conséquence (sans perdre d'informations sur les t0,t1 !)
-        A[2] = (mu2-mu1)*A[0] + (nu2-nu1)*A[1] + A[2];
-        A[5] = (mu2-mu1)*A[3] + (nu2-nu1)*A[4] + A[5];
-        //on a aussi pris en compte mu3,nu3, donc B n'ayant pas de translation, c'est plus simple
-        //à recadrer :  mu4,nu4 étant toujours entiers (et nuls) on les prend tels quels
-        //              mu3,nu3 étant des floor, on prend les floats qui leur correspondaient
-        B[2] = mu4-temp_min_x3;
-        B[5] = nu4-temp_min_y3;
-        //pourtant, pour homogénéiser avec A il semblerait que les formules ci dessous soit mieux
-        //B[2] = (((double)mu4)-temp_min_x3)*B[0] + (((double)nu4)-temp_min_y3)*B[1];
-        //B[5] = (((double)mu4)-temp_min_x3)*B[3] + (((double)nu4)-temp_min_y3)*B[4];
+        //à ce stade, on a pris en compte une grande partie des translations de A et , via les mu,nu
+        //on modifie donc A et B en conséquence
+
+        A[2] = mu2*A[0] + nu2*A[1] + A[2] - mu1;
+        A[5] = mu2*A[3] + nu2*A[4] + A[5] - nu1;
+        B[2] = mu4*B[0] + nu4*B[1] + B[2] - mu3;
+        B[5] = mu4*B[3] + nu4*B[4] + B[5] - nu3;
 
 
 
