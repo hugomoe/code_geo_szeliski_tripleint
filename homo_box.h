@@ -3,9 +3,6 @@
 #include <math.h>
 
 
-
-//Il apparait un point mysterieux si on fait l'identité, on décale.
-
 //prend en entrÈe img l'image, l'image ou la mettre, z le zoom et n coeff et w,h dimensions
 
 //on fait l'homographie separÈment sur les lignes et les colonnes grace ‡ l'intÈgration
@@ -48,14 +45,24 @@ int build_int_v(float *img1,float *img2,int j,int w,int h,int l){
 
 
 int build_triple(float *iimg,double* iimg3,int wh){
-
-	for(int i=0;i<2*wh;i++){
-		//iimg3[i]=(double)iimg[i];
-		if(i<wh){iimg3[i]=(double)iimg[i];}else{iimg3[i]=iimg[wh-1];} //pour le pb prabole
+/**
+  * @param
+  *		iimg : ligne/colonne intégré une fois de l'image
+  *		iimg3 : image triple intégrale d'une ligne/colonne de l'image
+  * 	wh : taille de la ligne/colonne
+  */
+  
+  //on remplit l'image intégrale qui est deux fois plus grande, en effet l'image intégrale n'est pas nul en dehors de l'image
+  //trois fois plus grand garantit qu'on n'est jamais en dehors (car d<1.6*wh)
+  //on passe en double sinon il y a des probleme de precision en integrant trois fois
+	for(int i=0;i<3*wh;i++){
+		if(i<wh){iimg3[i]=(double)iimg[i];}else{iimg3[i]=iimg[wh-1];}
 	}
+	
+	//On integre deux fois
 	for(int i=0;i<2;i++){
 		double tot=0;
-		for(int u=0;u<2*wh;u++){iimg3[u] = tot += iimg3[u];}
+		for(int u=0;u<3*wh;u++){iimg3[u] = tot += iimg3[u];}
 	}
 	return 0;
 }
@@ -63,19 +70,19 @@ int build_triple(float *iimg,double* iimg3,int wh){
 
 
 
-//version basique, a ameliorer, on ne periodise pas grossierment
+//Evalue la moyenne sur un segment d'une ligne ou d'une colonne 
 double eval_int(double *iimg,int j,int d,int wh){
 
 /**
   * @param
-  *     iimg : l'image intÈgrale (1D) ‡ Èvaluer
+  *     iimg : l'image integrale (en une dimension) a evaluer
   *     j : l'origine du segment en lequel Èvaluer iimg
-  *     d : l'Èpaisseur du segment en lequel Èvaluer iimg (d>0)
+  *     d : longueur du segment en lequel Èvaluer iimg (d>0)
   *     wh : la taille (w ou h) de iimg
   */
 
 
-    //pÈriodisÈ
+    //tentative de periodisation (pas efficace pour l'instant a cause des rotations avant)
 /*	int jj = good_modulus(j,wh);
 	int jd = good_modulus(j+d,wh);
 	//si on essaies d'accÈder en dehors de l'image
@@ -87,30 +94,41 @@ double eval_int(double *iimg,int j,int d,int wh){
 	else{return (iimg[wh-1] - iimg_jj + iimg_jd)/(float)dd;}
 //	*/
 
-    //non pÈriodisÈ
+    //version sans periodisation
+    
+    //borne du segment
 	int jj = j-1;
 	int jd = j+d-1;
 	if(jd<0){return 0;} //noir hors de l'image
-	if(jj>=wh-1){return iimg[wh-1];} //noir hors de l'image
+	if(jj>=wh-1){return 0;}//noir hors de l'image
 	
-    double iimg_jd = (jd<wh) ? iimg[jd] : iimg[wh-1];
-    double iimg_jj = (0<=jj) ? iimg[jj] : 0;
+    double iimg_jd = iimg[jd];
+    double iimg_jj = (0<=jj) ? iimg[jj] : 0; //il y a des zero avant le début de l'image
 
 	double dd; //le nombre de point sur lesquels on va prendre la moyenne
-	if(jd>jj){
-        dd=(double) (jd-jj);
-        return (iimg_jd - iimg_jj)/(double)dd;
-    }else{return 0;} //si en augmentant jj ou en rÈduisant jd on a inversÈ leur sens, c'est qu'on est hors de l'image
+	dd=(double) (jd-jj);
+    return (iimg_jd - iimg_jj)/(double)dd;
 }
 
 
-double eval_triple_int(double *iimg,int j,int d,int wh,int pix){
+//Fonction qui renvoie la convolution de l'image par la convolution de trois portes
+double eval_triple_int(double *iimg,int j,int d,int wh){
+
+/**
+  * @param
+  *     iimg : l'image integrale (en une dimension) a evaluer
+  *     j : l'origine de la porte convolé en lequel evaluer iimg
+  *     d : longueur de la porte convolé en lequel evaluer iimg (d>0)
+  *     wh : la taille (w ou h) de iimg
+  *		pix : marge possible en dehors de l'image
+  */
+
 	double a,b,c;
-	if(j>=wh-pix-1){return 0;} //ce n'est pas exact, c'est une parabole en dehors de l'image on rogne un peu...
+	if(j>=wh){return 0;} //dans ce cas on est centré en dehors de l'image
 	a=eval_int(iimg,j-d,d,wh);
 	b=eval_int(iimg,j,d,wh);
-	c=eval_int(iimg,j+d,d,wh);
-	return (a-2*b+c)/(double)pow(d,2);
+	c=eval_int(iimg,j+d,d,wh); //c'est ici qu'il est utile d'avoir iimg plus grande que l'image
+	return (a-2*b+c)/(double)pow(d,2);		//cette formule provient de l'integration par partie de la convolution
 }
 
 
@@ -128,26 +146,24 @@ float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 	float a,b,c,dd;
 	float D = d;//2*sqrt(0.64*pow(d,2)-0.49); //ou d si on est naif
 	
-	int pix = 2*(floor(D)+1);
-	j = j - D/2; //on recale et on recentre
+	j = j - D/2; //on decale le centre
 	int id=floor(D);
 	int ij=floor(j);
 	float x = D-id;
 	float y = j-ij;
 	
-	if(D<=1){ //‡ l'intÈrieur d'un seul pixel, interpolation bilinÈaire
-		a=eval_triple_int(iimg3,ij,1,wh+pix,pix);
-		b=eval_triple_int(iimg3,ij+1,1,wh+pix,pix);
+	if(id<=1){ //‡ l'intÈrieur d'un seul pixel, interpolation bilinÈaire
+		a=eval_triple_int(iimg3,ij,1,3*wh);
+		b=eval_triple_int(iimg3,ij+1,1,3*wh);
 		return a*(1-y)+b*y;
 	}
 	
-	if(D>=wh){return 0;}
-	//if(D>=wh){return moyenne/(float)wh;} //pour mettre l'horizon en gris
+	if(id>=wh-1){return 0;}
     
-	a=eval_triple_int(iimg3,ij,id,wh+pix,pix);
-	b=eval_triple_int(iimg3,ij+1,id,wh+pix,pix);
-	c=eval_triple_int(iimg3,ij,id+1,wh+pix,pix);
-	dd=eval_triple_int(iimg3,ij+1,id+1,wh+pix,pix);
+	a=eval_triple_int(iimg3,ij,id,3*wh);
+	b=eval_triple_int(iimg3,ij+1,id,3*wh);
+	c=eval_triple_int(iimg3,ij,id+1,3*wh);
+	dd=eval_triple_int(iimg3,ij+1,id+1,3*wh);
 
 	return (1-x)*(1-y)*a + (1-x)*y*b + x*(1-y)*c + x*y*dd;
 }
