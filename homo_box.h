@@ -138,13 +138,16 @@ double eval_triple_int(double *iimg,int j,int d,int wh){
 float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 /**
   * @param
-  *     iimg : l'image intÈgrale 1D ‡ Èvaluer
+  *     iimg3 : l'image intÈgrale 1D ‡ Èvaluer
   *     j : la coordonnÈe (float) du dÈbut du segment
   *     d : la taille (float) du segment
   *     wh : la taille de l'image
   */
 	float a,b,c,dd;
-	float D = d;//2*sqrt(0.64*pow(d,2)-0.49); //ou d si on est naif
+	float d_aux = 0.64*pow(d,2)-0.49;  //cf. formalisation papier, un peu flou...
+	if(d_aux <=0){d_aux=0;}
+	float D = 2*sqrt(d_aux); //ou d si on est naif
+	//D=d;  TOut ce passage est à revoir un peu, on a beaucoup de flou...
 	
 	j = j - D/2; //on decale le centre
 	int id=floor(D);
@@ -152,14 +155,18 @@ float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 	float x = D-id;
 	float y = j-ij;
 	
-	if(id<=1){ //‡ l'intÈrieur d'un seul pixel, interpolation bilinÈaire
+	//a l'interieur d'un seul pixel, interpolation bilinaire entre les deux pixels voisin 
+	//(il existe mieux que l'interpolation lineaire...))
+	if(id<=1){
 		a=eval_triple_int(iimg3,ij,1,3*wh);
 		b=eval_triple_int(iimg3,ij+1,1,3*wh);
 		return a*(1-y)+b*y;
 	}
 	
+	//on est oblige de garantir id petit sinon on sort de iimg3
 	if(id>=wh-1){return 0;}
     
+    //ici interpolation bilineaire avec j et d
 	a=eval_triple_int(iimg3,ij,id,3*wh);
 	b=eval_triple_int(iimg3,ij+1,id,3*wh);
 	c=eval_triple_int(iimg3,ij,id+1,3*wh);
@@ -170,18 +177,19 @@ float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 
 
 
-//apply_homo pour H tel que H[1]=H[4]=H[7]=0
+//apply_homo est concu pour H une homographie tel que H[1]=H[4]=H[7]=0
+//elle separe la transformation selon les lignes et les colonnes
 
 int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu,int mu_f,int nu_f,double H[9]){
 /*
   * @param
   *     img, img_f : les images d'entrÈe et de sortie
   *     w,h, w_f,h_f : les dimensions des images
-  *     mu,nu, mu_f,nu_f : les coordonnÈes du premier pixel
+  *     mu,nu, mu_f,nu_f : les coordonnÈes du pixel en haut a gauche des images final et initiale
   *     H : homographie telle que b=c=s=0
-  * Un pixel ayant une Èpaisseur de 1, on considËre que son antÈcÈdent est d'Èpaisseur d
-  * (d la dÈrivÈe de l'homographie en ce point)
-  * Dans le code, x et y reprÈsentent les coordonnÈes rÈelles, float, avec dÈcentrage
+  * Un pixel ayant une epaisseur de 1, on considere que son antÈcÈdent est d'epaisseur d
+  * (d la valeur absolue de la dÈrivÈe de l'homographie en ce point)
+  * Dans le code, x et y reprÈsentent les coordonnÈes reelles, float, avec decentrage
   * alors que i et j reprÈsentent les indexes dans le tableau, int, centrÈs en haut ‡ gauche
   * On pourrait Èviter certains dÈcentrage (-mu, -nu) qui seront compensÈs dans linear_int,
   * mais cela permet d'Ítre cohÈrent dans les notations
@@ -189,10 +197,9 @@ int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu
 	int i,j,l;
 	
     //w_aux,h_aux, mu_aux,nu_aux pour l'image intermÈdiaire img_aux
+    
     int w_aux = w_f; //la 2nde Ètape laisse inchangÈe x, donc w_f=w_aux
     int h_aux = h; //la 1ere Ètape laisse inchangÈe y, donc c'est noir en dehors de cette Èpaisseur
-        //SAUF SI ON PERIODISE. DANS CE CAS IL FAUT CHOISIR LA TAILLE EN FONCTION DE h_f
-        //ET DE LA SURFACE NECESSAIRE
     int mu_aux = mu_f;
 
     int nu_aux = nu;
@@ -204,24 +211,24 @@ int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu
 	for(l=0;l<3;l++){
 		float iimgw[w]; //une colonne vide
 
-		//opÈrations colonnes par colonnes :
+		//operations colonnes par colonnes :
 		for(j=0;j<h_aux;j++){
-			build_int_v(img,iimgw,j,w,h,l);
-			double iimgw3[3*w];   //On met trois parce que le D peut croitre plus vite que d.
-			build_triple(iimgw,iimgw3,w);
+			build_int_v(img,iimgw,j,w,h,l);		//on extrait le bonne colonne
+			double iimgw3[3*w];   		//On met trois parce que le D peut croitre plus vite que d.
+			build_triple(iimgw,iimgw3,w); 		//on construit la triple integrale, dans une image plus grande
 
 			for(i=0;i<w_aux;i++){
 				float x = (float) (i+mu_aux);
-				float d = absf((H[0]*H[8]-H[6]*H[2])/pow(H[6]*x+H[8],2)); //dÈrivÈe selon x
-				x = (H[0]*x+H[2])/(H[6]*x+H[8]) - flmu;
-				img_aux[i+j*w_aux] = triple_int(iimgw3,x,d,w,iimgw[w-1]);
+				float d = absf((H[0]*H[8]-H[6]*H[2])/pow(H[6]*x+H[8],2)); //derivee selon x
+				x = (H[0]*x+H[2])/(H[6]*x+H[8]) - flmu;		//on applique l'homographie
+				img_aux[i+j*w_aux] = triple_int(iimgw3,x,d,w,iimgw[w-1]);		//on realise la convolution
 			}
 		}
 
 
 		float iimgh[h_aux]; //une ligne vide
 		
-		//opÈrations lignes par lignes :
+		//opÈrations lignes par lignes, similaire a la precedente :
 		for(i=0;i<w_f;i++){
 			build_int_h(img_aux,iimgh,i,w_aux,h_aux);
 			double iimgh3[3*h_aux];
