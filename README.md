@@ -17,3 +17,6 @@ Changement par rapport à la master version :
 3 on rogne l'image symetrisé au bord à la fin pour limiter l'effet Gibbs
 
 4 Un peu plus de commentaire
+
+5 quelque modification dans homo_box.h : on a supprimer le "pix" pour juste prendre assez de marge dans tous les cas
+Pas mal de temps à debugger : finalement un version un peu plus propre et commentée
