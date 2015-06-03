@@ -13,7 +13,7 @@
 // 0 1 2
 // 3 4 5
 
-
+//prend un homographie H en entrée, et renvoit deux affinités A et B et une homographie partticulière H0
 void decomp(double H[9],double A[6],double H0[9],double B[6]){
 /**
   * @param
@@ -23,8 +23,6 @@ void decomp(double H[9],double A[6],double H0[9],double B[6]){
     double t0, t1;
 	//on suppose r,s != 0,0
 
-
-
     //il existe une infinité de couples (t0,t1) viables. On en choisit un simple
     if(fabs(a*s-b*r)<fabs(c*s-d*r)){
         t0 = 0.;
@@ -33,8 +31,6 @@ void decomp(double H[9],double A[6],double H0[9],double B[6]){
         t0 = -((a*s-b*r)*(a*r+b*s)+(c*s-d*r)*(c*r+d*s))/(pow(r,2.)+pow(s,2.))/(a*s-b*r);;
         t1 = 0.;
     }
-
-
 
     //on change les notations : on translate les coefficients (H devient T_(t0,t1)*H)
     a += t0*r;
@@ -71,20 +67,9 @@ void decomp(double H[9],double A[6],double H0[9],double B[6]){
     H0[6] = Nphi;
     H0[7] = 0.;
     H0[8] = t;
-
-
-
-
-//double theta = 3.14159265358979323*60./180.;
-//A[0] = cos(theta); A[1] = sin(theta); A[2] = 0; A[3] = -sin(theta); A[4] = cos(theta); A[5] = 0;
-//B[0] = cos(theta); B[1] = -sin(theta); B[2] = 0; B[3] = sin(theta); B[4] = cos(theta); B[5] = 0;
-
-//printf("\nA :\n%f %f %f\n%f %f %f\n",A[0],A[1],A[2],A[3],A[4],A[5]);
-//printf("H0 :\n%f %f %f\n%f %f %f\n%f %f %f\n",H0[0],H0[1],H0[2],H0[3],H0[4],H0[5],H0[6],H0[7],H0[8]);
-//printf("B :\n%f %f %f\n%f %f %f\n",B[0],B[1],B[2],B[3],B[4],B[5]);
-
 }
 
+//Cette fonction applique H a img et met les résultats dans img_f
 void apply_homo_final(float *img,float *img_f,int w,int h,int w_f,int h_f,double H[3][3]){
 
 /**
@@ -94,45 +79,38 @@ void apply_homo_final(float *img,float *img_f,int w,int h,int w_f,int h_f,double
   *     w,h : dimension de l'image d'entrée
   *     H : matrice de l'homographie img_f(x,y)=img(H(x,y))
   */
-//LE BLOC DOCUMENTATION PLUS BAS NE SERVIRA QUE QUAND TOUT FONCTIONNERA
-//(w1,h1,mu1,nu1)
-
-//printf("w x h : %d x %d\n",w,h);printf("w_f x h_f : %d x %d\n",w_f,h_f);
-	double *a = *H;
 
 printf("------------------- debut de apply_homo_final -------------------");
 printf("\nH :\n");
 printf("%f %f %f\n",H[0][0],H[0][1],H[0][2]);
 printf("%f %f %f\n",H[1][0],H[1][1],H[1][2]);
 printf("%f %f %f\n",H[2][0],H[2][1],H[2][2]);
-	if(a[6]==0 && a[7]==0){ //cas d'une affinité
-        for(int i=0;i<8;i++){a[i]=a[i]/a[8];}
-        a[8]=1.;
+
+
+	double *a = *H;
+	
+	//cas d'une affinité
+	if(a[6]==0 && a[7]==0){
+        	for(int i=0;i<8;i++){a[i]=a[i]/a[8];}  //on normalise l'homographie pour que a[8]=1
+        	a[8]=1.;
+        	
 		double A[6];
 		for(int i=0;i<6;i++){A[i]=a[i];}
 		apply_affinite(img,img_f,w,h,w_f,h_f,A);
-	}
-	else{
+	}else{
 		double A[6];
 		double H0[9];
 		double B[6];
 
 		decomp(a,A,H0,B);
 
-
-
-
-
-
-
-
-
-
-	double x4[4] = {0,w_f,w_f,0};
-        double y4[4] = {0,0,h_f,h_f};
-        //x1,y1 = H(x4,y4)
-        double x1[4];
-        double y1[4];
+		double x4[4] = {0,w_f,w_f,0};
+	        double y4[4] = {0,0,h_f,h_f};
+        	//x1,y1 = H(x4,y4) //si on voulait tronquer
+        	double x1[4];
+        	double y1[4];
+        	
+       //Pour tronquer l'image eventuellement (on ne s'en est pas servi)
 /**
         for(int k=0;k<4;k++){
             //si (x4[k]*a[6]+y4[k]*a[7]+a[8]==0?), !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!prévoir un cas pour simuler l'infini
@@ -161,19 +139,20 @@ printf("%f %f %f\n",H[2][0],H[2][1],H[2][2]);
         //x1,y1 sont les sommets du quadrilatère utile
         //si ils dépassaient de l'image, peut-être vaut-il mieux leur donner maintenant la valeur "coins de img1"
 */
+
         int w1=w;
         int h1=h;
         int mu1=0;
         int nu1=0;
 printf("\nw1 x h1 : %d x %d\n",w1,h1);
 printf("mu1 x nu1 : %d x %d\n",mu1,nu1);
-		x1[0]=0; x1[1]=w; x1[2]=w; x1[3]=0;
-		y1[0]=0; y1[1]=0; y1[2]=h; y1[3]=h;
 
+	//utile pour tronquer. on ne l'utilise pas
+	x1[0]=0; x1[1]=w; x1[2]=w; x1[3]=0;
+	y1[0]=0; y1[1]=0; y1[2]=h; y1[3]=h;
 
-
-		//x2,y2 = AA(x1,y1) où AA = A^(-1)
-		double det_A = A[0]*A[4]-A[3]*A[1];
+	//x2,y2 = AA(x1,y1) où AA = A^(-1)
+	double det_A = A[0]*A[4]-A[3]*A[1];
         double AA[6] = {
             A[4]/det_A,
             -A[1]/det_A,
@@ -183,6 +162,7 @@ printf("mu1 x nu1 : %d x %d\n",mu1,nu1);
             (-A[0]*A[5]+A[3]*A[2])/det_A
         };
 
+	//On precacul les coins des images intermediaire 
         double x2[4];
         double y2[4];
         for(int k=0;k<4;k++){
@@ -363,7 +343,7 @@ printf("application de B  : done\n");
         //*/
 	}
 	
-	
+	//on tronque la zone du a la symetrisation (dans "affine.h", pour éviter l'effet gibbs)
 	double p[2];
 	for(int i=0;i<w_f;i++){
 		for(int j=0;j<h_f;j++){
