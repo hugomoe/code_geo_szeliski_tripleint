@@ -10,13 +10,7 @@
   *
   * L'image a trois niveau de couleurs
   *
-  * toutes les opérations sont centrées sur le milieu de l'image
-  * étant donné l'affinité A (donnée en argument) telle que X=AX'
-  * on appliquera en vérité les opérations à B telle que (X-Xc)=B(X'-Xc)
-  * (Xc les coordonnées du centre). On en déduit B car pour tout X',
-  * AX' = BX'-BXc+Xc
-  * donc avec Y = X'-Xc,
-  * AY + AXc - Xc = BY
+  * A est telle que X=AX'
   */
 
 //le filtre comporte 2*TAPS+1 valeurs non nulle.
@@ -43,7 +37,7 @@ double absd(double a){if(a>0){return a;}{return -a;}}
 bool eq(double a,double b){if(a<b+pow(2,-PREC2)&& a>b-pow(2,-PREC2)){return true;}{return false;}}
 
 
-//cette fonction tanspose si cela est utile (cf article Szeliski)
+//cette fonction transpose si cela est utile (cf article Szeliski)
 void transpo_opt(float *img,double *a,int wh[2]){
 	double c1,c2;
 	c1 = sqrt(pow(a[0],2)+pow(a[1],2));
