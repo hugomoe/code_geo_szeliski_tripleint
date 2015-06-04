@@ -134,6 +134,14 @@ double eval_triple_int(double *iimg,int j,int d,int wh){
 
 
 
+double cubic_interpolation_dbl(double v[4], float x)
+{
+	return v[1] + 0.5 * x*(v[2] - v[0]
+			+ x*(2.0*v[0] - 5.0*v[1] + 4.0*v[2] - v[3]
+			+ x*(3.0*(v[1] - v[2]) + v[3] - v[0])));
+}
+
+
 //interpolation des segments possibles
 float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 /**
@@ -147,7 +155,7 @@ float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 	float d_aux = 0.64*pow(d,2)-0.49;  //cf. formalisation papier, un peu flou...
 	if(d_aux <=0){d_aux=0;}
 	float D = 2*sqrt(d_aux); //ou d si on est naif
-	//D=d;  TOut ce passage est à revoir un peu, on a beaucoup de flou...
+	//D=d;  //TOut ce passage est à revoir un peu, on a beaucoup de flou...
 	
 	j = j - D/2; //on decale le centre
 	int id=floor(D);
@@ -158,21 +166,23 @@ float triple_int(double *iimg3,float j,float d,int wh,float moyenne){
 	//a l'interieur d'un seul pixel, interpolation bilinaire entre les deux pixels voisin 
 	//(il existe mieux que l'interpolation lineaire...))
 	if(id<=1){
-		a=eval_triple_int(iimg3,ij,1,3*wh);
-		b=eval_triple_int(iimg3,ij+1,1,3*wh);
-		return a*(1-y)+b*y;
+		double Y[4];
+		for(int i=0;i<4;i++){Y[i]=eval_triple_int(iimg3,ij-1+i,1,3*wh);}
+		return cubic_interpolation_dbl(Y,y);
 	}
 	
 	//on est oblige de garantir id petit sinon on sort de iimg3
-	if(id>=wh-1){return 0;}
-    
-    //ici interpolation bilineaire avec j et d
-	a=eval_triple_int(iimg3,ij,id,3*wh);
-	b=eval_triple_int(iimg3,ij+1,id,3*wh);
-	c=eval_triple_int(iimg3,ij,id+1,3*wh);
-	dd=eval_triple_int(iimg3,ij+1,id+1,3*wh);
+	if(id>=wh-1){id=wh-2;}
+	
+	double Y1[4];
+	for(int i=0;i<4;i++){Y1[i]=eval_triple_int(iimg3,ij-1+i,id,3*wh);}
+	double Y2[4];
+	for(int i=0;i<4;i++){Y2[i]=eval_triple_int(iimg3,ij-1+i,id+1,3*wh);}
 
-	return (1-x)*(1-y)*a + (1-x)*y*b + x*(1-y)*c + x*y*dd;
+	a = cubic_interpolation_dbl(Y1,y);
+	b = cubic_interpolation_dbl(Y2,y);
+
+	return (1-x)*a + b*x;
 }
 
 
@@ -235,7 +245,7 @@ int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu
 			build_triple(iimgh,iimgh3,h_aux);
 			
 			float x =(float) (i+mu_f);
-			float d = absf(H[4]/(H[6]*x+H[8])); //dÈrivÈe selon y
+			float d = absf(H[4]/(H[6]*x+H[8])); //dÈrivÈe selon y, qui ne dépend de y
 			for(j=0;j<h_f;j++){
 				float y = (float) (j+nu_f);
 				y = (H[4]*y+H[5])/(H[6]*x+H[8]) - flnu_aux;
