@@ -20,3 +20,7 @@ Changement par rapport à la master version :
 
 5 quelque modification dans homo_box.h : on a supprimer le "pix" pour juste prendre assez de marge dans tous les cas
 Pas mal de temps à debugger : finalement un version un peu plus propre et commentée
+
+
+
+clang -I/usr/X11/include viho.c iio.c ftr.c -L/usr/X11/lib -lX11 -lfftw3
