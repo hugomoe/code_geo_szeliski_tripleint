@@ -1,3 +1,6 @@
+//clang -I/usr/X11/include -I/usr/local/include/libiomp viho.c iio.c ftr.c -L/usr/X11/lib -lX11
+
+
 // Homography viewer.
 //
 // This program loads a color image and allows the user to drag the four
@@ -42,25 +45,20 @@
 //
 // Compilation:
 //
-//	c99 -O3 -DNDEBUG viho.c iio.c ftr.c -lX11 -lpng -ljpeg -ltiff -o viho
+//	c99 -O3 -DNDEBUG viho.c iio.c ftr.c -lX11 -lpng -ljpeg -ltiff -o viho 
 //
-// Or rather
-//
-// clang -I/usr/X11/include viho.c iio.c ftr.c -L/usr/X11/lib -lX11 -lfftw3
 
-
+
 // SECTION 1. Libraries and data structures                                 {{{1
 
 // standard libraries
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <omp.h>
 
 // user interface library
 #include "ftr.h"
-#include "iio.h"
-#include "ftr.c"
-#include "iio.c"
 
 
 // radius of the disks that are displayed around control points
@@ -349,7 +347,7 @@ static float getsample_cons(float *x, int w, int h, int pd, int i, int j, int l)
 	if (w == 0 && h == 0)
 		value = *x;
 	if (i < 0 || i >= w || j < 0 || j >= h)
-		return value;
+		return 0;
 	if (l >= pd)
 		l = pd - 1;
 	return x[(i+j*w)*pd + l];
@@ -476,10 +474,8 @@ static interpolator_t obtain_interpolator(struct viewer_state *e)
 
 // SECTION 6. Main Warping Function                                         {{{1
 
-
-
+#include <time.h>
 #include "decomp.h"
-
 
 // draw the image warped by the current homography
 static void draw_warped_image(struct FTR *f)
@@ -490,201 +486,70 @@ static void draw_warped_image(struct FTR *f)
 	int h = e->ih;
 
 	double         H[3][3];   obtain_current_homography(H, e);
-//code impression
-/*printf("l'homographie est :\n");
-printf("%f %f %f\n",H[0][0],H[0][1],H[0][2]);
-printf("%f %f %f\n",H[1][0],H[1][1],H[1][2]);
-printf("%f %f %f\n",H[2][0],H[2][1],H[2][2]);*/
-//fin code impression
-    /*double HH[3][3];
-    invert_homography(HH,H);*/
-
-	/*H[0][0]=0.555741;
-	H[0][1]=0.000000;
-	H[0][2]=-18.339451;
-	H[1][0]=0.000000;
-	H[1][1]=0.574839;
-	H[1][2]=-18.969673;
-	H[2][0]=-0.001155;
-	H[2][1]=-0.001117;
-	H[2][2]=1.074970;*/
-
-	/*H[0][0]=1.;
-	H[0][1]=0.;
-	H[0][2]=0.;
-	H[1][0]=0.;
-	H[1][1]=0.516804;
-	H[1][2]=0.;
-	H[2][0]=0.;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-    /*double theta = 3.14159265358979323*10./180.;
-    H[0][0] = 2*cos(theta);
-    H[0][1] = 2*sin(theta);
-    H[0][2] = 0;
-    H[1][0] = 2*-sin(theta);
-    H[1][1] = 2*cos(theta);
-    H[1][2] = 0.;
-    H[2][0] = 0.;
-    H[2][1] = 0.;
-    H[2][2] = 1.;*/
-
-	/*H[0][0]=1.;
-	H[0][1]=1.;
-	H[0][2]=0.;
-	H[1][0]=0.;
-	H[1][1]=1.;
-	H[1][2]=0.;
-	H[2][0]=0.;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-    /*H[0][0]=0.107933;
-	H[0][1]=0.000899;
-	H[0][2]=-3.784855;
-	H[1][0]=-0.747116;
-	H[1][1]=0.778536;
-	H[1][2]=19.920756;
-	H[2][0]=-0.000941;
-	H[2][1]=-0.000131;
-	H[2][2]=1.;*/
-
-	/*H[0][0]=0.999872;
-	H[0][1]=-0.016005;
-	H[0][2]=-41712.166835;
-	H[1][0]=0.016005;
-	H[1][1]=0.999872;
-	H[1][2]=-0.;
-	H[2][0]=0.;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-	/**H[0][0]=1.068466;
-	H[0][1]=0.000000;
-	H[0][2]=-35.259367;
-	H[1][0]=-0.947627;
-	H[1][1]=2.016093;
-	H[1][2]=-35.259367;
-	H[2][0]=-0.001854;
-	H[2][1]=0.001714;
-	H[2][2]=1.;*/
-
-	/*H[0][0]=0.755767;
-	H[0][1]=0.654841;
-	H[0][2]=0.;
-	H[1][0]=-0.654841;
-	H[1][1]=0.755767;
-	H[1][2]=548.395748;
-	H[2][0]=0.;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-	/*H[0][0]=0.5;
-	H[0][1]=0.8660254040;
-	H[0][2]=0.;
-	H[1][0]=-.8660254040;
-	H[1][1]=0.5;
-	H[1][2]=0.;
-	H[2][0]=0.;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-	/*H[0][0]=1.;
-	H[0][1]=0.;
-	H[0][2]=0.;
-	H[1][0]=0.;
-	H[1][1]=1.;
-	H[1][2]=0.;
-	H[2][0]=0.;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-	/*H[0][0]=5.941860;
-	H[0][1]=4.035144;
-	H[0][2]=-2128.915394;
-	H[1][0]=4.006254;
-	H[1][1]=5.941860;
-	H[1][2]=-2115.077255;
-	H[2][0]=0.007840;
-	H[2][1]=0.007897;
-	H[2][2]=-2.351781;*/
-
-	/**H[0][0]=0.687834;
-	H[0][1]=0;
-	H[0][2]=-22.698512;
-	H[1][0]=-0.004372;
-	H[1][1]=0.977134;
-	H[1][2]=-32.101133;
-	H[2][0]=-0.00001;
-	H[2][1]=-0.000005;
-	H[2][2]=1.;*/
-
-    /*H[0][0]=1.899628;
-    H[0][1]=0.554891;
-    H[0][2]=-328.480718;
-    H[1][0]=0.374255;
-    H[1][1]=1.899628;
-    H[1][2]=-241.955934;
-    H[2][0]=0.000732;
-    H[2][1]=0.001086;
-    H[2][2]=0.787031;*/
-
-	/*H[0][0]=1.;
-	H[0][1]=0.;
-	H[0][2]=-100.;
-	H[1][0]=0.;
-	H[1][1]=1.;
-	H[1][2]=-100.;
-	H[2][0]=0.001;
-	H[2][1]=0.;
-	H[2][2]=1.;*/
-
-    /*H[0][0]*=2.;
-	H[0][1]*=2.;
-	H[0][2]*=2.;
-	H[1][0]*=2.;
-	H[1][1]*=2.;
-	H[1][2]*=2.;*/
-
-
+	
+/*	H[0][0]=0.107933;
+H[0][1]=0.000899;
+H[0][2]=-3.784855;
+H[1][0]=-0.747116;
+H[1][1]=0.778536;
+H[1][2]=19.920756;
+H[2][0]=-0.000941;
+H[2][1]=-0.000131;
+H[2][2]=1.;*/
+	
+
 	float *img = malloc(3*(f->w)*(f->h)*sizeof(float));
 	float *img_f = malloc(3*(f->w)*(f->h)*sizeof(float));
 
 	extrapolator_t OUT      = obtain_extrapolator(e);
 	interpolator_t EVAL     = obtain_interpolator(e);
-/*
-	for (int j = 0; j < f->h; j++)
-	for (int i = 0; i < f->w; i++)
-	{
-		double p[2] = {i, j};
-		apply_homography(p, a, p);
-		p[0] = (p[0] - 0.5) * w / (w - 1.0);
-		p[1] = (p[1] - 0.5) * h / (h - 1.0);
-		for (int l = 0; l < 3; l++)
-		{
-			int idx = l + 3 * (f->w * j + i);
-			float v = EVAL(e->img, w, h, e->pd, p[0], p[1], l, OUT);
-			//img[idx] = v;
-			img[idx] = ((*e).img)[idx];
+
+if(e->interpolation_order == 0){
+	#pragma omp parallel for
+	for (int j = 0; j < f->h; j++){
+	for (int i = 0; i < f->w; i++){
+			double p[2] = {i, j};
+			apply_homography(p, H, p);
+			p[0] = (p[0] - 0.5) * w / (w - 1.0);
+			p[1] = (p[1] - 0.5) * h / (h - 1.0);
+			for (int l = 0; l < 3; l++){
+				int idx = l + 3 * (f->w * j + i);
+				float v = EVAL(e->img, w, h, e->pd, p[0], p[1], l, OUT);
+				f->rgb[idx] = v;
+			}
 		}
-	}*/
+	}
+	}
+	
+
+if(e->interpolation_order==1){
+	clock_t debut,fin;
+	debut = clock();
 	if(e->pd==3){
         apply_homo_final(e->img,img_f,w,h,f->w,f->h,H);
 	}else{//suppose pd=1
         float *img3 = malloc(3*w*h*sizeof(float));
-        for(int l = 0;l<3;l++){
-            for(int i=0;i<w*h;i++){
+        #pragma omp parallel for
+        for(int i=0;i<w*h;i++){
+            for(int l = 0;l<3;l++){
                 img3[3*i+l]=e->img[i];
             }
         }
         apply_homo_final(img3,img_f,w,h,f->w,f->h,H);
 	}
+	#pragma omp parallel for
 	for(int i=0;i<3*(f->w)*(f->h);i++){(f->rgb)[i]=float_to_byte(img_f[i]);}
+	fin = clock();
+	printf("cela a pris :%fs\n",(double)(fin-debut)/CLOCKS_PER_SEC);
+	
+	}
 }
 
 
-
+
+
+
+
 // SECTION 7. Drawing                                                       {{{1
 
 // Subsection 7.1. Drawing segments                                         {{{2
@@ -1066,7 +931,6 @@ int main(int argc, char *argv[])
 	f.userdata = e;
 
 	e->img = iio_read_image_float_vec(filename_in, &e->iw, &e->ih, &e->pd);
-
 
 
 	center_view(&f);
