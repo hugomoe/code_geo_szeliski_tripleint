@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "umax_vmax.h"
+#include <omp.h>
 
 /**
   * affinité :
@@ -19,27 +20,31 @@
   * AY + AXc - Xc = BY
   */
 
+//le filtre comporte 2*TAPS+1 valeurs non nulle.
 #define TAPS 4
-//#define TAPS 1
 
 #define FILTER_TYPE 0 //the index to change the interpolation filter
 //list of possible index for interpolation filters
 #define RAISED_COSINE 0
 #define GAUSSIAN 1
 
-#define VARIANCE 0.36 //trop de flou
-//#define VARIANCE 0.1 //trop d'aliasing
+#define VARIANCE 0.36 
 #define PERIOD 1.
 #define BETA 0.25
 
+//Prec indique la précision des des calculs
 #define PREC 10
 #define PREC2 20
 #define PI 3.14159265358979323
 
+//on a redéfinit la valeur absolue
 double absd(double a){if(a>0){return a;}{return -a;}}
 
+//une égalité pour les doubles, qui utilise PREC2
 bool eq(double a,double b){if(a<b+pow(2,-PREC2)&& a>b-pow(2,-PREC2)){return true;}{return false;}}
 
+
+//cette fonction tanspose si cela est utile (cf article Szeliski)
 void transpo_opt(float *img,double *a,int wh[2]){
 	double c1,c2;
 	c1 = sqrt(pow(a[0],2)+pow(a[1],2));
@@ -49,29 +54,30 @@ void transpo_opt(float *img,double *a,int wh[2]){
 	if(a0+a4<a1+a3){
 		int w = wh[0];
 		int h = wh[1];
-	//transpo affinite
+	//transposition de l'affinite
 		double aa[6];
 		aa[0]=a[3]; aa[1]=a[4]; aa[2]=a[5]; aa[3]=a[0]; aa[4]=a[1]; aa[5]=a[2];
 		a[0]=aa[0]; a[1]=aa[1]; a[2]=aa[2]; a[3]=aa[3]; a[4]=aa[4]; a[5]=aa[5];
 
-	//transpo img
+	//transposition de l'image
 		float *img_t = malloc(3*w*h*sizeof(float));
-		int i,j,l;
-		for(l=0;l<3;l++){
-			for(i=0;i<w;i++){
-				for(j=0;j<h;j++){
+		#pragma omp parallel for
+		for(int i=0;i<w;i++){
+			for(int j=0;j<h;j++){
+				for(int l=0;l<3;l++){
 					img_t[(j+h*i)*3+l]=img[(i+j*w)*3+l];
 				}
 			}
 		}
-		for(i=0;i<w*h*3;i++){img[i]=img_t[i];}
+		#pragma omp parallel for
+		for(int i=0;i<w*h*3;i++){img[i]=img_t[i];}
 
-	//transpo w / h
+	//transposition de w et h
 		wh[0]=h; wh[1]=w;
 	}
 }
 
-
+//La fonction qui sert de base pour definir le filtre
 float filter_fun(float x){
     switch(FILTER_TYPE){
     case GAUSSIAN:
@@ -88,26 +94,26 @@ float filter_fun(float x){
 
 
 
-
+//Cette fonction réalise l interpolation horizontale.
+//Les xc_i, yc_f, ... sont les coordonnées du centre de l'image initiale / final
 float filter_h(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,float *H,int N,int prec,double a0,double a1,int i,int j,int l){
 	double x = i;
 	double y = j;
 	double wf = (double) w, hf = (double) h;
-	double M = a0*(x+xc_f-wf/2.) + a1*(y+yc_f-hf/2.) - xc_i+wf/2.;
+	double M = a0*(x+xc_f-wf/2.) + a1*(y+yc_f-hf/2.) - xc_i+wf/2.;  //Indique ou on doit centrer la gaussienne
 	int k = floor(M);
 	int p = floor(prec*(M-k));
-	float a = 0;
-
-	int u = k-N;
-	if(u<0){u=0;}
-
-	for(;u<=k+N && u<w;u++){
-        a += H[(k-u)*prec + p + N*prec]*img[(u+j*w)*3+l];
+	float tot = 0;
+//on convole
+	#pragma omp parallel for
+	for(int u = k-N<0?0:k-N;u<=k+N && u<w;u++){
+	       tot += H[(k-u)*prec + p + N*prec]*img[(u+j*w)*3+l];
 	}
 
-    return a;
+    return tot;
 }
 
+//Fonction similaire mais verticale
 float filter_v(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,float *H,int N,int prec,double a0,double a1,int i,int j,int l){
 	double x = i;
 	double y = j;
@@ -115,51 +121,57 @@ float filter_v(float *img,int w,int h,double xc_i,double yc_i,double xc_f,double
 	double M = a1*(x+xc_f-wf/2.) + a0*(y+yc_f-hf/2.) - yc_i+hf/2.;
 	int k = floor(M);
 	int p = floor(prec*(M-k));
-	float a = 0;
+	float tot = 0;
 
-	int u = k-N;
-	if(u<0){u=0;}
-
-	for(;u<=k+N && u<h;u++){
-        a += H[(k-u)*prec + p + N*prec]*img[(i+u*w)*3+l];
+	#pragma omp parallel for
+	for(int u = k-N<0?0:k-N;u<=k+N && u<h;u++){
+        tot += H[(k-u)*prec + p + N*prec]*img[(i+u*w)*3+l];
 	}
 
-    return a;
+    return tot;
 }
 
 
-
+//Cette fonction applique un shear horizontale, de paramêtre a0 et a1 
+//Le s est la largeur du filtre
+//Les xc_i, yc_f, ... sont les coordonnées du centre de l'image initiale / final
 int apply_rh(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,double s,double a0,double a1){
 
+	//si c'est l'identité on ne veut pas convoler, on renvoit alors l'image initiale
 	if(eq(a0,1.) && eq(a1,0.) && eq(xc_i,xc_f)){
+		#pragma omp parallel for
 		for(int i=0;i<3*w*h;i++){img2[i]=img1[i];}
 		return 0;
 	}
 
 //printf("apply_rh(%f,%f,%f)\n",s,a0,a1);
 
+	//on déclare H qui est un precalcul de coefficient du filtre
 	int N = ceil(abs(s*TAPS));
 	int prec = pow(2,PREC);
 	float precf = (float) prec;
 	//float sf = (float) s;
 	float *H = malloc((2*N+1)*prec*sizeof(float));
-    if(H==NULL){printf("apply_rh : H n'a pas ete cree");return 1;}
+	if(H==NULL){printf("apply_rh : H n'a pas ete cree");return 1;} //gestion d'erreur du malloc
 
-	int k,p,i,j;
 
-	for(p=0;p<prec;p++){
+	//on remplit le H a l'aide de la fonction du filtre filter_fun
+	#pragma omp parallel for
+	for(int p=0;p<prec;p++){
 		float Htot = 0;
 		float pf = (float) p;
-		for(k=-N;k<=N;k++){
+		for(int k=-N;k<=N;k++){
                 float kf = (float) k;
-			Htot += H[k*prec + p + N*prec] = filter_fun((kf+pf/precf)/s);
+			Htot += H[k*prec + p + N*prec] = filter_fun((kf+pf/precf)/s);  //s est la largeur du flitre
 		}
-		for(k=-N;k<=N;k++){H[k*prec + p + N*prec] = H[k*prec + p + N*prec]/Htot;}
+		for(int k=-N;k<=N;k++){H[k*prec + p + N*prec] = H[k*prec + p + N*prec]/Htot;} //On normalise le filtre, pour chaque p
 	}
 
-	for(int l=0;l<3;l++){
-		for(j=0;j<h;j++){
-			for(i=0;i<w;i++){
+	//On fait la convolution
+	#pragma omp parallel for
+	for(int j=0;j<h;j++){
+		for(int i=0;i<w;i++){
+			for(int l=0;l<3;l++){
 				img2[(i+j*w)*3 + l] = filter_h(img1,w,h,xc_i,yc_i,xc_f,yc_f,H,N,prec,a0,a1,i,j,l);
 			}
 		}
@@ -168,11 +180,14 @@ int apply_rh(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double 
 	return 0;
 }
 
+
+//Fonction similaire mais verticale
 int apply_rv(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double xc_f,double yc_f,double s,double a0,double a1){
 
 	if(eq(a0,1.) && eq(a1,0.) && eq(yc_i,yc_f)){
-		for(int i=0;i<3*w*h;i++){img2[i]=img1[i];}
-		return 0;
+		for(int i=0;i<3*w*h;i++){img2[i]=img1[i];
+	}
+	return 0;
 	}
 
 //printf("apply_rv(%f,%f,%f)\n",s,a0,a1);
@@ -184,21 +199,22 @@ int apply_rv(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double 
 	float *H = malloc((2*N+1)*prec*sizeof(float));
 	if(H==NULL){printf("apply_rv : H n'a pas ete cree");return 1;}
 
-	int k,p,i,j;
-
-	for(p=0;p<prec;p++){
+	#pragma omp parallel for
+	for(int p=0;p<prec;p++){
 		float Htot = 0;
 		float pf = (float) p;
-		for(k=-N;k<=N;k++){
+		for(int k=-N;k<=N;k++){
             float kf = (float) k;
 			Htot += H[k*prec + p + N*prec] = filter_fun((kf+pf/precf)/s);
 		}
-		for(k=-N;k<=N;k++){H[k*prec + p + N*prec] = H[k*prec + p + N*prec]/Htot;}
+		for(int k=-N;k<=N;k++){H[k*prec + p + N*prec] = H[k*prec + p + N*prec]/Htot;}
 	}
 
-	for(int l=0;l<3;l++){
-		for(i=0;i<w;i++){
-			for(j=0;j<h;j++){
+	
+	#pragma omp parallel for
+	for(int i=0;i<w;i++){
+		for(int j=0;j<h;j++){
+			for(int l=0;l<3;l++){
 				img2[(i+j*w)*3+l] = filter_v(img1,w,h,xc_i,yc_i,xc_f,yc_f,H,N,prec,a0,a1,i,j,l);
 			}
 		}
@@ -208,43 +224,47 @@ int apply_rv(float *img1,float *img2,int w,int h,double xc_i,double yc_i,double 
 
 
 
+//Fonction principale, qui prend deux pointeurs vers des images, leurs dimensions, ainsi qu'une affinite.
+//Elle copie le resultat de la transformation dans img_f, l'image finale
 int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *affinity){
 	int i,j,l;
+	
 	//copie des arguments
 	float *img_i = malloc(3*w*h*sizeof(float));
+
+	#pragma omp parallel for
 	for(i=0;i<3*w*h;i++){img_i[i]=img[i];}
+	
 	double a[6];
-	for (i=0;i<6;i++){a[i]=affinity[i];}
+	for (i=0;i<6;i++){a[i]=affinity[i];} //utile lors des tests.
 
-
+	//on transpose eventuellement l'image et l'affinite
 	int wh[2] = {w,h};
 	transpo_opt(img_i,a,wh);
 	w=wh[0];
 	h=wh[1];
 
-    //umax,vmax
+    	//On calcul umax et vmax, cf. Szeliski
 	double umax,vmax;
-    double A[2][2] = {a[0],a[1],a[3],a[4]};
-    int test = umax_vmax(&umax,&vmax,A);
-    if(test==0){
-        printf("@apply_affinite : erreur dans umax_vmax\n");
+	double A[2][2] = {a[0],a[1],a[3],a[4]};
+    	int test = umax_vmax(&umax,&vmax,A);  //dans le fichier "umax_vmax.h"
+    	if(test==0){
+        	printf("@apply_affinite : erreur dans umax_vmax\n");
         exit(1);
-    }
+	}
 
-    //ww et hh : la taille de l'image qu'on traitera
-    //(suffisamment grande pour ne pas sortir de l'image)
-    int ww,hh;
-    if(w<w_f){ww = w_f;} else {ww = w;}
-    if(h<h_f){hh = h_f;} else {hh = h;}
-    //dw et dh : différence de taille entre img_i et img_f
-    int dw = (w_f-w)/2, dh = (h_f-h)/2; //x_f et x ont même parité
-    //dwp et dhp leur partie positive (xp=max(0,x))
-    int dwp = (dw<0) ? 0 : dw;
-    int dhp = (dh<0) ? 0 : dh;
-    //dwn et dhn leur partie négative (xn=max(0,-x))
-    int dwn = (-dw<0) ? 0 : -dw;
-    int dhn = (-dh<0) ? 0 : -dh;
+	//Divers valeurs utiles pour calculer les tailles d'images
+	//ww et hh sont les dimensions de l'image qu'on traitera (suffisamment grande pour ne pas sortir de l'image)
+	int ww,hh;
+	if(w<w_f){ww = w_f;} else {ww = w;}
+	if(h<h_f){hh = h_f;} else {hh = h;}
+	//dw et dh : différence de taille entre img_i et img_f
+	int dw = (w_f-w)/2, dh = (h_f-h)/2; //x_f et x ont même parité
+	//dwp et dhp leur partie positive (xp=max(0,x))
+	int dwp = (dw<0) ? 0 : dw;
+	int dhp = (dh<0) ? 0 : dh;
 
+	//declaration d'image intermediaire, avec code d'erreur du malloc
 	float *img1 = malloc(3*9*ww*hh*sizeof(float));
 	float *img2 = malloc(3*9*ww*hh*sizeof(float));
 	if(img1==NULL || img2==NULL){
@@ -253,14 +273,13 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
     }
 
 
-
-
-
+	//Ici il y a le choix des conditions aux bord pour éviter l'effet Gibbs. Ici on a opte pour symétrique
     ///** condition aux bords : symétrisation
 	int i_sym,j_sym;
-	for(l=0;l<3;l++){
-		for(i=0;i<3*ww;i++){
-			for(j=0;j<3*hh;j++){
+	#pragma omp parallel for
+	for(i=0;i<3*ww;i++){
+		for(j=0;j<3*hh;j++){
+			for(l=0;l<3;l++){
                 i_sym = i-ww-dwp;
                 while(i_sym<0 || i_sym>w-1){i_sym = (i_sym<0) ? -1-i_sym : 2*w-1-i_sym;}
                 j_sym = j-hh-dhp;
@@ -302,7 +321,7 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
 	//*/
 
 
-
+	//Calcul de valeurs auxiliaire pour la decomposition en shear (cf. Szeliski, on a garde les noms de l'article)
 	double b0 = a[0] - a[1]*a[3]/a[4];
 	double t2 = a[2] - a[1]*a[5]/a[4];
 	//rv
@@ -316,46 +335,52 @@ int apply_affinite(float *img,float *img_f,int w,int h,int w_f,int h_f,double *a
 	double rh = absd(a[3]/a[4])*rv*vmax + aux_rh;
 	if(rh>3){rh = 3;}else{if(rh<1){rh = 1;}}
 
-    double wf = (double) w, hf = (double) h;
-    double wwf = (double) ww, hhf = (double) hh;
-    double xc_i, yc_i, xc_f, yc_f; //coordonnées absolues du centre de l'image, initiales et finales
-
-    xc_i = wf/2.;
-    yc_i = hf/2.;
-    xc_f = xc_i;
-    yc_f = rv/a[4] * yc_i;
+	//Calcul du centre des images
+	double wf = (double) w, hf = (double) h;
+	double wwf = (double) ww, hhf = (double) hh;
+	double xc_i, yc_i, xc_f, yc_f; //coordonnées absolues du centre des images initiale et finale
+	xc_i = wf/2.;
+	yc_i = hf/2.;
+	xc_f = xc_i;
+	yc_f = rv/a[4] * yc_i;
+	
+	//application du shear centre
 	apply_rv(img1,img2,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,1/vmax,a[4]/rv,0.);
-
-	xc_i = xc_f - t2; //translation de -t2 selon x
+	
+	//translation de -t2 selon x
+	xc_i = xc_f - t2;
 	yc_i = yc_f;
 	xc_f = rh/b0 * xc_i - a[1]/rv*rh/b0 * yc_i;
 	yc_f = yc_i;
-    apply_rh(img2,img1,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,1/umax,b0/rh,a[1]/rv);
-
-    xc_i = xc_f;
-    yc_i = yc_f - a[5]*rv/a[4]; //translation de -a[5]*rv/a[4] selon y
-    xc_f = xc_i;
-    yc_f = hhf/2.;
+	
+	//deuxieme shear
+    	apply_rh(img2,img1,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,1/umax,b0/rh,a[1]/rv);	
+    	
+    	//translation de -a[5]*rv/a[4] selon y
+	xc_i = xc_f;
+	yc_i = yc_f - a[5]*rv/a[4];
+	xc_f = xc_i;
+	yc_f = hhf/2.;
+	
+	//troisieme shear
 	apply_rv(img1,img2,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,rv,rv,a[3]*rv/a[4]/rh);
-
+	
+	//on recentre
 	xc_i = xc_f;
 	yc_i = yc_f;
 	xc_f = wwf/2.;
 	yc_f = hhf/2.;
+	
+	//quatrieme shear
 	apply_rh(img2,img1,3*ww,3*hh,xc_i,yc_i,xc_f,yc_f,rh,rh,0.);
 
 
-
-
-
-
-
-	for(l=0;l<3;l++){
-		for(i=0;i<w_f;i++){
-			for(j=0;j<h_f;j++){
+	//On recopie finalement le résultat dans l'image final
+	#pragma omp parallel for
+	for(i=0;i<w_f;i++){
+		for(j=0;j<h_f;j++){
+			for(l=0;l<3;l++){
 				img_f[(i+j*w_f)*3+l] = img1[(i+ww+(j+hh)*ww*3)*3+l];
-				//draw a grid
-				//if (good_modulus(i,w_f/3) == 0 || good_modulus(j,h_f/3) == 0){img_f[(i+j*w_f)*3+l] = 255;}
 			}
 		}
 	}
