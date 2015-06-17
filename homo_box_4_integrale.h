@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <math.h>
 
-
-
+//Ce programme homobow utilise l'image 4-int (modifiée) pour interpoler l'image par une fonction affine par morceaux (interp par spline d'orde 1)
+//et pour calculer la convoléde cette fonction par le filtre g3 (trois porte de largeur d convolées entre elles)
+//Le programme fonctionne une erreur de typage à été corrigé par rapport aux versions précédentes 
 
 float absf(float a){if(a>0){return a;}else{return -a;}}
 
