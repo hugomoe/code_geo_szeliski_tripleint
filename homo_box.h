@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <omp.h>
 
 //Ce programme homobow utilise l'image 4-int (modifiée) pour interpoler l'image par une fonction affine par morceaux (interp par spline d'orde 1)
 //et pour calculer la convoléde cette fonction par le filtre g3 (trois porte de largeur d convolées entre elles)
@@ -180,12 +181,11 @@ int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu
 
     float flmu = (float) mu, flnu_aux = (float) nu_aux;
 
-
+	#pragma omp parallel for
 	for(l=0;l<3;l++){
 
-
-
 		//operations colonnes par colonnes :
+		#pragma omp parallel for
 		for(j=0;j<h_aux;j++){
             for(i=0;i<w;i++){imgw[i] = img[3*(i+j*w)+l];} // on extrait la colonne
             build_quatre_int(imgw,Img,w); //on construit l'image4 int
@@ -202,6 +202,7 @@ int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu
 
 
 		//opÈrations lignes par lignes, similaire a la precedente :
+		#pragma omp parallel for
 		for(i=0;i<w_f;i++){
 
             for(j=0;j<h_aux;j++){img_auxh[j] = img_aux[i+j*w_aux];} //on extrait une ligne
@@ -218,7 +219,8 @@ int apply_homo(float *img,float *img_f,int w,int h,int w_f,int h_f,int mu,int nu
 
 			}
 		}
-
+	
+		#pragma omp parallel for
 		for(i=0;i<w_f*h_f;i++){img_f[3*i+l]=img_aux2[i];}
 
 	}
