@@ -79,7 +79,11 @@ float convol_img(float *img,double *Img,double xy,float d,int wh){
   *     xys : partie entière de xy
   */
 
-double D = (d>1) ? (double) 2*sqrt(0.64*pow(d,2)-0.49) : (double) 2*sqrt(0.64-0.49);
+
+//On limite l'écart type de la triple porte sinon il y a des problèmes numériques
+double d_aux = 0.64*pow(d,2)-0.49;
+if(d_aux<0.001){d_aux=0.001;}
+double D = 2*sqrt(d_aux);
 
 float s;
 
